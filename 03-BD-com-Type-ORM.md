@@ -1,4 +1,4 @@
-# Integrando Banco de Dados com NestJS - TypeORM
+# Integrando Banco de Dados no NestJS com TypeORM
 
 ## 1. Preparação do Ambiente
 
@@ -6,87 +6,22 @@
 npm install @nestjs/typeorm typeorm pg
 ```
 
-## 2. Configuração do TypeORM
+E configurar os scripts no `package.json`:
 
-Vamos criar duas entidades: `User` e `Order`. Primeiro, configure o módulo TypeORM no `app.module.ts`:
-
-```typescript
-import { Module } from '@nestjs/common';
-import { TypeOrmModule } from '@nestjs/typeorm';
-
-@Module({
-  imports: [
-    TypeOrmModule.forRoot({
-      type: 'postgres',
-      host: 'localhost',
-      port: 5432,
-      username: 'seu_usuario',
-      password: 'sua_senha',
-      database: 'nestjs_db',
-      entities: [__dirname + '/**/*.entity{.ts,.js}'],
-      synchronize: false, // Importante: false em produção
-    }),
-  ],
-})
-export class AppModule {}
-```
-
-## 3. Criando as Entidades
-
-### User Entity
-```typescript
-// src/users/entities/user.entity.ts
-import { Entity, PrimaryGeneratedColumn, Column, OneToMany } from 'typeorm';
-import { Order } from '../../orders/entities/order.entity';
-
-@Entity('users')
-export class User {
-  @PrimaryGeneratedColumn()
-  id: number;
-
-  @Column()
-  name: string;
-
-  @Column({ unique: true })
-  email: string;
-
-  @Column()
-  password: string;
-
-  @OneToMany(() => Order, order => order.user)
-  orders: Order[];
+```json
+{
+  "scripts": {
+    "typeorm": "ts-node ./node_modules/typeorm/cli",
+    "migration:generate": "npm run typeorm -- migration:generate -n",
+    "migration:run": "npm run typeorm migration:run",
+    "migration:revert": "npm run typeorm migration:revert"
+  }
 }
 ```
 
-### Order Entity
-```typescript
-// src/orders/entities/order.entity.ts
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn } from 'typeorm';
-import { User } from '../../users/entities/user.entity';
+## 2. Configurando o TypeORM
 
-@Entity('orders')
-export class Order {
-  @PrimaryGeneratedColumn()
-  id: number;
-
-  @Column()
-  description: string;
-
-  @Column('decimal')
-  total: number;
-
-  @Column()
-  userId: number;
-
-  @ManyToOne(() => User, user => user.orders)
-  @JoinColumn({ name: 'userId' })
-  user: User;
-}
-```
-
-## 4. Criando as Migrations
-
-Primeiro, configure o CLI do TypeORM criando um arquivo `ormconfig.js` na raiz do projeto:
+Crie o arquivo `ormconfig.js` na raiz do projeto:
 
 ```javascript
 module.exports = {
@@ -104,108 +39,153 @@ module.exports = {
 }
 ```
 
-Agora, crie as migrations:
+Configure o módulo TypeORM no `app.module.ts`:
 
 ```typescript
-// src/migrations/1640000000000-CreateUsers.ts
-import { MigrationInterface, QueryRunner, Table } from 'typeorm';
+import { Module } from '@nestjs/common';
+import { TypeOrmModule } from '@nestjs/typeorm';
 
-export class CreateUsers1640000000000 implements MigrationInterface {
-  public async up(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.createTable(
-      new Table({
-        name: 'users',
-        columns: [
-          {
-            name: 'id',
-            type: 'int',
-            isPrimary: true,
-            isGenerated: true,
-            generationStrategy: 'increment',
-          },
-          {
-            name: 'name',
-            type: 'varchar',
-          },
-          {
-            name: 'email',
-            type: 'varchar',
-            isUnique: true,
-          },
-          {
-            name: 'password',
-            type: 'varchar',
-          },
-        ],
-      }),
-    );
-  }
+@Module({
+  imports: [
+    TypeOrmModule.forRoot({
+      type: 'postgres',
+      host: 'localhost',
+      port: 5432,
+      username: 'seu_usuario',
+      password: 'sua_senha',
+      database: 'nestjs_db',
+      entities: [__dirname + '/**/*.entity{.ts,.js}'],
+      synchronize: false, // NUNCA use true em produção
+    }),
+  ],
+})
+export class AppModule {}
+```
 
-  public async down(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.dropTable('users');
-  }
-}
+## 3. Criando Nossa Primeira Entidade
 
-// src/migrations/1640000000001-CreateOrders.ts
-import { MigrationInterface, QueryRunner, Table, TableForeignKey } from 'typeorm';
+Vamos começar com a entidade User:
 
-export class CreateOrders1640000000001 implements MigrationInterface {
-  public async up(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.createTable(
-      new Table({
-        name: 'orders',
-        columns: [
-          {
-            name: 'id',
-            type: 'int',
-            isPrimary: true,
-            isGenerated: true,
-            generationStrategy: 'increment',
-          },
-          {
-            name: 'description',
-            type: 'varchar',
-          },
-          {
-            name: 'total',
-            type: 'decimal',
-            precision: 10,
-            scale: 2,
-          },
-          {
-            name: 'userId',
-            type: 'int',
-          },
-        ],
-      }),
-    );
+```typescript
+// src/users/entities/user.entity.ts
+import { Entity, PrimaryGeneratedColumn, Column } from 'typeorm';
 
-    await queryRunner.createForeignKey(
-      'orders',
-      new TableForeignKey({
-        columnNames: ['userId'],
-        referencedColumnNames: ['id'],
-        referencedTableName: 'users',
-        onDelete: 'CASCADE',
-      }),
-    );
-  }
+@Entity('users')
+export class User {
+  @PrimaryGeneratedColumn()
+  id: number;
 
-  public async down(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.dropTable('orders');
-  }
+  @Column()
+  name: string;
+
+  @Column({ unique: true })
+  email: string;
 }
 ```
 
-Para executar as migrations:
+## 4. Gerando Nossa Primeira Migration
+
+Agora vamos gerar a migration para criar a tabela users:
 
 ```bash
-npm run typeorm migration:run
+npm run migration:generate src/migrations/CreateUserTable
 ```
 
-## 5. Implementando o CRUD
+Isso vai gerar um arquivo como `src/migrations/[TIMESTAMP]-CreateUserTable.ts` com o SQL necessário para criar a tabela.
 
-### Módulo de Users
+## 5. Executando a Migration
+
+```bash
+npm run migration:run
+```
+
+## 6. Evoluindo a Entidade User
+
+Vamos adicionar o campo password:
+
+```typescript
+@Entity('users')
+export class User {
+  @PrimaryGeneratedColumn()
+  id: number;
+
+  @Column()
+  name: string;
+
+  @Column({ unique: true })
+  email: string;
+
+  @Column()
+  password: string; // Novo campo
+}
+```
+
+Gerando migration para a nova coluna:
+
+```bash
+npm run migration:generate src/migrations/AddPasswordToUser
+```
+
+Execute a nova migration:
+
+```bash
+npm run migration:run
+```
+
+## 7. Criando a Segunda Entidade com Relacionamento
+
+Agora vamos criar a entidade Order:
+
+```typescript
+// src/orders/entities/order.entity.ts
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne } from 'typeorm';
+import { User } from '../../users/entities/user.entity';
+
+@Entity('orders')
+export class Order {
+  @PrimaryGeneratedColumn()
+  id: number;
+
+  @Column()
+  description: string;
+
+  @Column('decimal', { precision: 10, scale: 2 })
+  total: number;
+
+  @ManyToOne(() => User, user => user.orders)
+  user: User;
+}
+```
+
+E atualizar a entidade User para incluir o relacionamento:
+
+```typescript
+// src/users/entities/user.entity.ts
+import { Entity, PrimaryGeneratedColumn, Column, OneToMany } from 'typeorm';
+import { Order } from '../../orders/entities/order.entity';
+
+@Entity('users')
+export class User {
+  // ... campos anteriores ...
+
+  @OneToMany(() => Order, order => order.user)
+  orders: Order[];
+}
+```
+
+Gere a migration para criar a tabela orders e o relacionamento:
+
+```bash
+npm run migration:generate src/migrations/CreateOrderTable
+```
+
+Execute a migration:
+
+```bash
+npm run migration:run
+```
+
+## 8. Implementando o Módulo Users
 
 ```typescript
 // src/users/users.module.ts
@@ -223,7 +203,24 @@ import { UsersService } from './users.service';
 export class UsersModule {}
 ```
 
-### Service de Users
+## 9. Criando DTOs
+
+```typescript
+// src/users/dto/create-user.dto.ts
+export class CreateUserDto {
+  name: string;
+  email: string;
+  password: string;
+}
+
+// src/users/dto/update-user.dto.ts
+import { PartialType } from '@nestjs/mapped-types';
+import { CreateUserDto } from './create-user.dto';
+
+export class UpdateUserDto extends PartialType(CreateUserDto) {}
+```
+
+## 10. Implementando o Service
 
 ```typescript
 // src/users/users.service.ts
@@ -265,7 +262,7 @@ export class UsersService {
 }
 ```
 
-### Controller de Users
+## 11. Implementando o Controller
 
 ```typescript
 // src/users/users.controller.ts
@@ -305,53 +302,30 @@ export class UsersController {
 }
 ```
 
-## 6. DTOs
+## Exercício Prático
+
+Agora é sua vez! Implemente o CRUD completo para Orders seguindo os mesmos passos:
+
+1. Crie os DTOs para Order (CreateOrderDto e UpdateOrderDto)
+2. Implemente o OrdersModule
+3. Crie o OrdersService com os métodos CRUD
+4. Implemente o OrdersController
+5. Adicione um endpoint extra para listar todas as orders de um usuário específico
+
+### Dica para listar orders de um usuário:
 
 ```typescript
-// src/users/dto/create-user.dto.ts
-export class CreateUserDto {
-  name: string;
-  email: string;
-  password: string;
+// No OrdersService
+findByUser(userId: number) {
+  return this.ordersRepository.find({
+    where: { user: { id: userId } },
+    relations: ['user'],
+  });
 }
-
-// src/users/dto/update-user.dto.ts
-import { PartialType } from '@nestjs/mapped-types';
-import { CreateUserDto } from './create-user.dto';
-
-export class UpdateUserDto extends PartialType(CreateUserDto) {}
 ```
 
-## 7. Exercício Prático
 
-Agora que implementamos o CRUD completo para Users, seu exercício é:
-
-1. Implementar o CRUD completo para Orders seguindo o mesmo padrão
-2. Adicionar os seguintes endpoints especiais:
-   - Listar todas as orders de um usuário específico
-   - Calcular o total de todas as orders de um usuário
-3. Implementar validação de dados usando class-validator
-4. Adicionar paginação na listagem de orders
-
-### Dicas para o exercício:
-
-- Use o decorator `@ManyToOne` para relacionar Order com User
-- Utilize QueryBuilder para consultas mais complexas
-- Implemente DTOs com validações
-- Use os decorators do class-validator para validação
-
-Endpoints criados:
-
-```
-POST /users
-GET /users
-GET /users/:id
-PATCH /users/:id
-DELETE /users/:id
-
-POST /orders
-GET /orders
-GET /orders/:id
-PATCH /orders/:id
-DELETE /orders/:id
+Se precisar reverter alguma migration, use:
+```bash
+npm run migration:revert
 ```
